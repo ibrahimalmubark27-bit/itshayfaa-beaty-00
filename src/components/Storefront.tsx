@@ -21,17 +21,14 @@ import {
 } from "./ui";
 import { Header } from "./Header";
 import {
-  CinematicBand,
   Founder,
   Footer,
-  Gallery,
   Hero,
   Manifesto,
   Newsletter,
   ProcessStrip,
   Testimonials,
   TrustStrip,
-  WordMarquee,
 } from "./sections";
 import { CategorySection, QuickView } from "./shop";
 import { CartDrawer } from "./cart";
@@ -252,8 +249,7 @@ export default function Storefront({ products }: { products: Product[] }) {
         <Marquee items={STRINGS[lang].ribbon} />
         <Header />
         <main>
-          <Hero products={products} />
-          <WordMarquee />
+          <Hero />
           <TrustStrip />
           <Manifesto />
           <Founder />
@@ -263,24 +259,22 @@ export default function Storefront({ products }: { products: Product[] }) {
             en="The Bags"
             lead="شنط"
             accent="تعيش معكِ"
-            desc="جلد طبيعي، ألوان هادية، وتفاصيل مصنوعة لتبقى. كل شنطة وصلت هيفاء بنفسها."
+            desc="جلد طبيعي، ألوان هادية، تفاصيل تدوم."
             products={bags}
           />
-          <CinematicBand />
           <CategorySection
             id="makeup"
             num="٠٢"
             en="Makeup"
             lead="مكياج"
             accent="بدرجات هادية"
-            desc="ظلال وشفايف وفرش بدرجات تتناسق مع بعض — إطلالة يومية خفيفة وواثقة."
+            desc="ظلال وشفايف وفرش — إطلالة خفيفة وواثقة."
             products={makeup}
             columns={4}
             tint
           />
           <ProcessStrip />
           <Testimonials />
-          <Gallery />
           <Newsletter />
         </main>
         <Footer />

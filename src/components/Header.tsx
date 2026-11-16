@@ -64,9 +64,7 @@ export function Header() {
   const NAV = [
     { label: t.nav.bags, a: "#bags" },
     { label: t.nav.makeup, a: "#makeup" },
-    { label: t.nav.story, a: "#story" },
-    { label: t.nav.reviews, a: "#reviews" },
-    { label: t.nav.contact, a: "#contact" },
+    { label: t.nav.admin, a: "/admin" },
   ];
 
   return (
