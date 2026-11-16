@@ -1,0 +1,16 @@
+# Dependencies & build
+node_modules/
+.next/
+out/
+
+# Secrets — never commit
+.env
+.env.local
+
+# Local zips (keep the in-site one: public/all-images.zip)
+project-complete.zip
+all-images.zip
+
+# OS
+.DS_Store
+Thumbs.db
