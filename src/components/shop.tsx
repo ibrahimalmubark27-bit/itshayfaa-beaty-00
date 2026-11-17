@@ -44,12 +44,14 @@ function SectionHeader({
   lead,
   accent,
   desc,
+  portrait,
 }: {
   num: string;
   en: string;
   lead: string;
   accent: string;
   desc: string;
+  portrait?: { src: string; caption: string };
 }) {
   return (
     <div className="mb-12 flex items-end justify-between gap-8 lg:mb-16">
@@ -67,9 +69,21 @@ function SectionHeader({
           {lead} <Accent>{accent}</Accent>
         </h2>
       </div>
-      <p className="hidden max-w-[280px] text-sm leading-7 text-ink/55 lg:block">
-        {desc}
-      </p>
+      {portrait ? (
+        <div className="hidden flex-col items-center gap-2 lg:flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={portrait.src}
+            alt={portrait.caption}
+            className="h-24 w-24 rounded-full object-cover object-top shadow-md ring-4 ring-linen"
+          />
+          <span className="text-[11px] font-bold text-ink/50">{portrait.caption}</span>
+        </div>
+      ) : (
+        <p className="hidden max-w-[280px] text-sm leading-7 text-ink/55 lg:block">
+          {desc}
+        </p>
+      )}
     </div>
   );
 }
@@ -176,6 +190,7 @@ export function CategorySection({
   products,
   columns = 3,
   tint = false,
+  portrait,
 }: {
   id: string;
   num: string;
@@ -186,6 +201,7 @@ export function CategorySection({
   products: Product[];
   columns?: 3 | 4;
   tint?: boolean;
+  portrait?: { src: string; caption: string };
 }) {
   const { lang } = useStore();
 
@@ -214,7 +230,14 @@ export function CategorySection({
       )}
       <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
         <Reveal>
-          <SectionHeader num={num} en={en} lead={lead} accent={accent} desc={desc} />
+          <SectionHeader
+            num={num}
+            en={en}
+            lead={lead}
+            accent={accent}
+            desc={desc}
+            portrait={portrait}
+          />
         </Reveal>
 
         <div className={gridClass}>

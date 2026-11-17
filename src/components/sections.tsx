@@ -38,7 +38,7 @@ export function Hero() {
         }}
         aria-hidden
       />
-      <div className="relative mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 py-24 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:py-28">
         <div className="max-w-2xl">
           <div className="flex items-center gap-3 text-mauve">
             <span className="h-px w-10 bg-mauve/40" />
@@ -76,6 +76,21 @@ export function Hero() {
             >
               {t.hero.cta2}
             </a>
+          </div>
+        </div>
+
+        {/* ---------- Hayfaa portrait (the face of the site) ---------- */}
+        <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+          <div className="relative mx-auto w-[90%] sm:w-[80%]">
+            <div className="overflow-hidden rounded-[44px] shadow-[0_45px_90px_-45px_rgba(122,82,76,0.55)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/founder/hero-hayfaa.jpg"
+                alt="هيفاء بيوتي"
+                className="aspect-square w-full object-cover"
+              />
+            </div>
+            <FlowerMark className="absolute -right-4 -top-6 h-12 w-14" />
           </div>
         </div>
       </div>
@@ -122,7 +137,12 @@ export function Manifesto() {
     <section className="relative py-20 lg:py-24">
       <div className="mx-auto flex max-w-4xl flex-col items-center px-5 text-center sm:px-8">
         <Reveal>
-          <FlowerMark className="mx-auto h-10 w-11" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/founder/artist-hayfaa.jpg"
+            alt="هيفاء"
+            className="mx-auto h-24 w-24 rounded-full object-cover object-top shadow-lg ring-4 ring-linen"
+          />
           <p className="mt-5 text-[11px] font-bold tracking-[0.35em] text-mauve">
             {t.manifesto.eyebrow}
           </p>

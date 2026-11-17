@@ -272,6 +272,7 @@ export default function Storefront({ products }: { products: Product[] }) {
             products={makeup}
             columns={4}
             tint
+            portrait={{ src: "/images/founder/makeup-hayfaa.jpg", caption: STRINGS[lang].hand }}
           />
           <ProcessStrip />
           <Testimonials />

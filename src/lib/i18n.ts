@@ -157,6 +157,7 @@ const ar = {
     added: "أُضيفت «{name}»",
     out: "نفدت الكمية",
   },
+  hand: "من يد هيفاء",
   currency: "ر.ق",
 };
 
@@ -317,6 +318,7 @@ const en: Strings = {
     added: '"{name}" added',
     out: "Out of stock",
   },
+  hand: "From Hayfaa's hands",
   currency: "QAR",
 };
 
