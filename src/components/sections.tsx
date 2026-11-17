@@ -81,14 +81,15 @@ export function Hero() {
 
         {/* ---------- Hayfaa portrait (the face of the site) ---------- */}
         <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-          <div className="relative mx-auto w-[90%] sm:w-[80%]">
-            <div className="overflow-hidden rounded-[44px] shadow-[0_45px_90px_-45px_rgba(122,82,76,0.55)]">
+          <div className="relative mx-auto w-[88%] sm:w-[78%]">
+            <div className="arch-soft relative overflow-hidden shadow-[0_45px_90px_-45px_rgba(122,82,76,0.55)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/founder/hero-hayfaa.jpg"
                 alt="هيفاء بيوتي"
-                className="aspect-square w-full object-cover"
+                className="aspect-[3/4] w-full object-cover object-top"
               />
+              <div className="absolute inset-0 bg-gradient-to-t from-mauve-deep/15 via-transparent to-transparent" />
             </div>
             <FlowerMark className="absolute -right-4 -top-6 h-12 w-14" />
           </div>
