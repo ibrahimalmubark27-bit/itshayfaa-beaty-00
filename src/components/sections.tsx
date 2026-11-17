@@ -58,7 +58,9 @@ export function Hero() {
             </span>
           </h1>
 
-          <p className="mt-7 max-w-md text-base leading-8 text-ink/55">{t.hero.desc}</p>
+          {t.hero.desc && (
+            <p className="mt-7 max-w-md text-base leading-8 text-ink/55">{t.hero.desc}</p>
+          )}
 
           <div className="mt-10 flex flex-wrap items-center gap-7">
             <a
