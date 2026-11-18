@@ -158,6 +158,7 @@ const ar = {
     out: "نفدت الكمية",
   },
   hand: "من يد هيفاء",
+  session: "من جلسة هيفاء",
   currency: "ر.ق",
 };
 
@@ -319,6 +320,7 @@ const en: Strings = {
     out: "Out of stock",
   },
   hand: "From Hayfaa's hands",
+  session: "From Hayfaa's session",
   currency: "QAR",
 };
 

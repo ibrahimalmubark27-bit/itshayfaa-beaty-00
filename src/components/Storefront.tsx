@@ -27,6 +27,7 @@ import {
   Manifesto,
   Newsletter,
   ProcessStrip,
+  SessionStrip,
   Testimonials,
   TrustStrip,
 } from "./sections";
@@ -253,6 +254,7 @@ export default function Storefront({ products }: { products: Product[] }) {
           <TrustStrip />
           <Manifesto />
           <Founder />
+          <SessionStrip />
           <CategorySection
             id="bags"
             num="٠١"

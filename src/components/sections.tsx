@@ -85,7 +85,7 @@ export function Hero() {
             <div className="arch-soft relative overflow-hidden shadow-[0_45px_90px_-45px_rgba(122,82,76,0.55)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/images/founder/hero-hayfaa.jpg"
+                src="/images/founder/hero-bag.jpg"
                 alt="هيفاء بيوتي"
                 className="aspect-[3/4] w-full object-cover object-top"
               />
@@ -182,7 +182,7 @@ export function Founder() {
           <div className="arch-soft w-44 overflow-hidden shadow-2xl shadow-mauve-deep/15 sm:w-52">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/images/founder/founder-main.jpg"
+              src="/images/founder/hero-hayfaa.jpg"
               alt={t.founder.name}
               className="aspect-[3/4] w-full object-cover object-top"
             />
@@ -292,6 +292,50 @@ export function Testimonials() {
                   </span>
                 </figcaption>
               </figure>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================= SESSION STRIP (all Hayfaa photos) ============================= */
+
+const SESSION_PHOTOS = [
+  "/images/founder/session-1.jpg",
+  "/images/founder/session-2.jpg",
+  "/images/founder/session-3.jpg",
+  "/images/founder/session-4.jpg",
+  "/images/founder/session-5.jpg",
+];
+
+export function SessionStrip() {
+  const t = useI18n();
+  return (
+    <section className="py-14 lg:py-16">
+      <div className="mx-auto max-w-5xl px-5 sm:px-8">
+        <Reveal>
+          <div className="flex items-center justify-center gap-4">
+            <span className="h-px w-16 bg-sand" />
+            <p className="text-[11px] font-bold tracking-[0.35em] text-mauve">
+              {t.session}
+            </p>
+            <span className="h-px w-16 bg-sand" />
+          </div>
+        </Reveal>
+        <div className="mt-10 flex flex-wrap items-start justify-center gap-4 sm:gap-5">
+          {SESSION_PHOTOS.map((src, i) => (
+            <Reveal key={src} delay={i * 90}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={t.session}
+                loading="lazy"
+                className={`h-32 w-32 rounded-2xl object-cover object-top shadow-md ring-2 ring-linen transition-transform duration-500 hover:-rotate-1 hover:scale-105 sm:h-36 sm:w-36 ${
+                  i % 2 === 1 ? "sm:translate-y-5" : ""
+                }`}
+              />
             </Reveal>
           ))}
         </div>
