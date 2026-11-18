@@ -6,7 +6,6 @@ import { useI18n } from "@/lib/i18n";
 import {
   Accent,
   ArrowIcon,
-  BagIcon,
   CheckIcon,
   ExchangeIcon,
   FlowerMark,
@@ -567,10 +566,7 @@ export function Footer() {
               <InstagramIcon className="h-4 w-4 shrink-0 text-blush/70" />
               <span dir="ltr">@hayfaa.beauty</span>
             </li>
-            <li className="flex items-center gap-3">
-              <BagIcon className="h-4 w-4 shrink-0 text-blush/70" />
-              <span>{t.footer.hours}</span>
-            </li>
+
           </ul>
         </div>
 
