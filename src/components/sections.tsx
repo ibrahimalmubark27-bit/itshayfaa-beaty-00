@@ -249,17 +249,7 @@ export function Testimonials() {
   const t = useI18n();
   return (
     <section id="reviews" className="relative py-20 lg:py-24">
-      <StitchDivider className="mb-14" />
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <Reveal>
-          <SectionHeading
-            center
-            eyebrow={t.reviews.eyebrow}
-            lead={t.reviews.lead}
-            accent={t.reviews.accent}
-          />
-        </Reveal>
-        <div className="mt-14 grid gap-6 md:grid-cols-3 lg:gap-8">
+        <div className="grid gap-6 md:grid-cols-3 lg:gap-8">
           {t.reviews.items.map((r, i) => (
             <Reveal
               key={r.name}
@@ -294,7 +284,6 @@ export function Testimonials() {
             </Reveal>
           ))}
         </div>
-      </div>
     </section>
   );
 }
