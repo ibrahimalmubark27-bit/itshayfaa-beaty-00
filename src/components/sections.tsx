@@ -8,6 +8,7 @@ import {
   ArrowIcon,
   CheckIcon,
   ExchangeIcon,
+  GearIcon,
   FlowerMark,
   GiftIcon,
   InstagramIcon,
@@ -537,8 +538,13 @@ export function Footer() {
               </a>
             </li>
             <li>
-              <a href="/admin" className="transition-colors hover:text-blush">
-                {t.nav.admin}
+              <a href="#reviews" className="transition-colors hover:text-blush">
+                {t.reviews.eyebrow}
+              </a>
+            </li>
+            <li>
+              <a href="#gallery" className="transition-colors hover:text-blush">
+                تابعينا
               </a>
             </li>
           </ul>
@@ -580,8 +586,15 @@ export function Footer() {
       </div>
 
       <div className="relative border-t border-linen/10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-5 py-6 text-xs text-linen/35 sm:flex-row sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 py-6 text-xs text-linen/35 sm:flex-row sm:px-8">
           <p>{t.footer.rights}</p>
+          <a
+              href="/admin"
+              className="flex items-center gap-2 rounded-full border border-gold/50 bg-gold/10 px-6 py-3 text-xs font-bold text-gold shadow-lg shadow-gold/10 transition-all duration-300 hover:bg-gold hover:text-mauve-deep"
+            >
+              <GearIcon className="h-4 w-4" />
+              {t.nav.admin} — دخول الموظفين
+            </a>
           <p className="flex items-center gap-2">
             {t.footer.madeA}
             <FlowerMark className="h-4 w-4.5" tone="light" />
