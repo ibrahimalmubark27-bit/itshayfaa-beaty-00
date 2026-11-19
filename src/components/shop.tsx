@@ -358,6 +358,23 @@ export function QuickView() {
               <CheckIcon className="h-3.5 w-3.5" />
               {fill(t.quickview.stock, { n: p.stock })}
             </p>
+
+            {p.extra && Object.keys(p.extra).length > 0 && (
+              <div className="mt-5 rounded-2xl border border-sand bg-cream/60 p-4">
+                <p className="text-[11px] font-bold text-ink/50">مواصفات</p>
+                <dl className="mt-2 space-y-1.5">
+                  {Object.entries(p.extra).map(([k, v]) => (
+                    <div
+                      key={k}
+                      className="flex items-center justify-between border-b border-sand/50 pb-1.5 text-sm last:border-0"
+                    >
+                      <dt className="font-bold text-ink/60">{k}</dt>
+                      <dd className="font-bold text-ink">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
           </div>
         </div>
       </div>

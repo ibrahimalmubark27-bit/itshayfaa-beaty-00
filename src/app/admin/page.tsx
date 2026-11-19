@@ -1,57 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { ADMIN_PASS, ADMIN_USER } from "@/lib/admin-auth";
+import { formatPrice } from "@/lib/types";
 import type { Product } from "@/lib/types";
 import {
-  BagIcon,
-  BrushIcon,
   CheckIcon,
   CloseIcon,
   EditIcon,
-  LockIcon,
   Logo,
   PlusIcon,
+  StarIcon,
   TrashIcon,
   UploadIcon,
+  BagIcon,
+  BrushIcon,
+  CloseIcon as XIcon,
 } from "@/components/ui";
 
 const TOKEN_KEY = "hb-admin-token";
-const BADGES = ["", "جديد", "وصل حديثاً", "الأكثر مبيعاً"];
 
-type FormState = {
-  name: string;
-  nameEn: string;
-  subtitle: string;
-  subtitleEn: string;
-  category: "bags" | "makeup";
-  price: string;
-  oldPrice: string;
-  badge: string;
-  featured: boolean;
-  stock: string;
-  description: string;
-  descriptionEn: string;
-  image: string;
-};
-
-const emptyForm: FormState = {
-  name: "",
-  nameEn: "",
-  subtitle: "",
-  subtitleEn: "",
-  category: "bags",
-  price: "",
-  oldPrice: "",
-  badge: "",
-  featured: false,
-  stock: "10",
-  description: "",
-  descriptionEn: "",
-  image: "",
-};
-
-/** ضغط صورة الموبايل إلى JPEG (ماкс عرض 1000px) وحفظها Data URL */
-function fileToDataUrl(file: File): Promise<string> {
+async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -60,353 +30,405 @@ function fileToDataUrl(file: File): Promise<string> {
       const scale = Math.min(1, max / Math.max(img.width, img.height));
       const w = Math.round(img.width * scale);
       const h = Math.round(img.height * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
       if (!ctx) {
         URL.revokeObjectURL(url);
-        reject(new Error("canvas error"));
+        reject(new Error("canvas"));
         return;
       }
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
+      resolve(c.toDataURL("image/jpeg", 0.82));
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("تعذر قراءة الصورة"));
+      reject(new Error("read"));
     };
     img.src = url;
   });
 }
 
-function L({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-bold text-ink/70">{label}</span>
-      {children}
-    </label>
-  );
-}
+type ExtraField = { key: string; value: string };
+
+type FormState = {
+  name: string;
+  nameEn: string;
+  category: "bags" | "makeup";
+  price: string;
+  oldPrice: string;
+  badge: string;
+  stock: string;
+  featured: boolean;
+  subtitle: string;
+  subtitleEn: string;
+  description: string;
+  descriptionEn: string;
+  image: string;
+  extra: ExtraField[];
+};
+
+const emptyForm: FormState = {
+  name: "",
+  nameEn: "",
+  category: "bags",
+  price: "",
+  oldPrice: "",
+  badge: "",
+  stock: "10",
+  featured: false,
+  subtitle: "",
+  subtitleEn: "",
+  description: "",
+  descriptionEn: "",
+  image: "",
+  extra: [],
+};
+
+const BADGES = ["", "جديد", "وصل حديثاُ", "الأكثر مبيعاً"];
 
 const inputCls =
-  "w-full rounded-xl border border-ink/15 bg-cream/60 px-4 py-3 text-sm outline-none transition-colors placeholder:text-ink/30 focus:border-mauve";
+  "w-full rounded-xl border border-ink/15 bg-cream/60 px-4 py-3 text-sm outline-none transition-colors focus:border-mauve placeholder:text-ink/30";
 
 export default function AdminPage() {
   const [token, setToken] = useState<string | null>(null);
-  const [pin, setPin] = useState("");
-  const [authError, setAuthError] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"list" | "form">("list");
-  const [editing, setEditing] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [dbError, setDbError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // login
+  const [username, setUsername] = useState(ADMIN_USER);
+  const [password, setPassword] = useState(ADMIN_PASS);
+  const [loginErr, setLoginErr] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+
+  // product form
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [toast, setToast] = useState("");
-  const [listError, setListError] = useState("");
+  const [saveErr, setSaveErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const notify = useCallback((m: string) => {
-    setToast(m);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2500);
-  }, []);
-
-  useEffect(() => {
-    try {
-      const t = sessionStorage.getItem(TOKEN_KEY);
-      if (t) setToken(t);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const [authed, setAuthed] = useState(false);
 
   const api = useCallback(
-    async (path: string, opts?: RequestInit) => {
+    async (path: string, init?: RequestInit) => {
       const res = await fetch(path, {
-        ...opts,
+        ...init,
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
+          ...(init?.headers || {}),
         },
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        [k: string]: unknown;
+      };
       if (res.status === 401) {
+        localStorage.removeItem(TOKEN_KEY);
         setToken(null);
-        try {
-          sessionStorage.removeItem(TOKEN_KEY);
-        } catch {
-          /* ignore */
-        }
-        throw new Error("انتهت الجلسة — ادخلي الـPIN مرة أخرى");
+        setAuthed(false);
+        throw new Error("انتهت الجلسة");
       }
-      if (!res.ok || data.ok === false) {
-        throw new Error(data.error || `خطأ ${res.status}`);
-      }
-      return data;
+      return { res, data } as const;
     },
     [token]
   );
 
+  // check saved token on load
+  useEffect(() => {
+    (async () => {
+      const t = localStorage.getItem(TOKEN_KEY);
+      if (!t) {
+        setChecking(false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/admin/products", {
+          headers: { Authorization: `Bearer ${t}` },
+        });
+        if (res.ok) {
+          setToken(t);
+          setAuthed(true);
+        } else {
+          localStorage.removeItem(TOKEN_KEY);
+        }
+      } catch {
+        /* offline */
+      }
+      setChecking(false);
+    })();
+  }, []);
+
   const load = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
-    setListError("");
+    setDbError(false);
+    setLoadError(null);
     try {
-      const d = await api("/api/admin/products");
-      setProducts(d.products as Product[]);
-    } catch (e) {
-      setListError((e as Error).message);
+      const res = await fetch("/api/admin/products", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        products?: Product[];
+      };
+      if (res.status === 503) setDbError(true);
+      else if (res.ok) setProducts(data.products ?? []);
+      else setLoadError(data.error || "خطأ في التحميل");
+    } catch {
+      setLoadError("خطأ في الاتصال");
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [token]);
 
   useEffect(() => {
-    if (token) load();
-  }, [token, load]);
+    if (authed) load();
+  }, [authed, load]);
 
-  async function login(e: React.FormEvent) {
+  async function login(e: FormEvent) {
     e.preventDefault();
-    setAuthBusy(true);
-    setAuthError("");
+    setLoginBusy(true);
+    setLoginErr("");
     try {
-      const res = await fetch("/api/admin/auth", {
+      const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ username, password }),
       });
-      const d = (await res.json()) as { ok: boolean; token?: string; error?: string };
-      if (!d.ok || !d.token) throw new Error(d.error || "PIN غير صحيح");
-      setToken(d.token);
-      try {
-        sessionStorage.setItem(TOKEN_KEY, d.token);
-      } catch {
-        /* ignore */
+      const data = (await res.json()) as {
+        ok?: boolean;
+        token?: string;
+        error?: string;
+      };
+      if (data.ok && data.token) {
+        localStorage.setItem(TOKEN_KEY, data.token);
+        setToken(data.token);
+        setAuthed(true);
+      } else {
+        setLoginErr(data.error || "خطأ");
       }
-    } catch (e) {
-      setAuthError((e as Error).message);
+    } catch {
+      setLoginErr("خطأ في الاتصال");
     } finally {
-      setAuthBusy(false);
+      setLoginBusy(false);
     }
   }
 
   function logout() {
+    localStorage.removeItem(TOKEN_KEY);
     setToken(null);
+    setAuthed(false);
     setProducts([]);
-    try {
-      sessionStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* ignore */
-    }
   }
 
-  function startAdd() {
-    setEditing(null);
+  function openAdd() {
+    setEditingId(null);
     setForm(emptyForm);
-    setError("");
-    setView("form");
-    window.scrollTo({ top: 0 });
+    setSaveErr("");
+    setFormOpen(true);
   }
 
-  function startEdit(p: Product) {
-    setEditing(p);
+  function openEdit(p: Product) {
+    setEditingId(p.id);
     setForm({
-      name: p.name,
+      name: p.name ?? "",
       nameEn: p.nameEn ?? "",
+      category: p.category,
+      price: String(p.price ?? ""),
+      oldPrice: p.oldPrice != null ? String(p.oldPrice) : "",
+      badge: p.badge ?? "",
+      stock: String(p.stock ?? 0),
+      featured: !!p.featured,
       subtitle: p.subtitle ?? "",
       subtitleEn: p.subtitleEn ?? "",
-      category: p.category,
-      price: String(p.price),
-      oldPrice: p.oldPrice ? String(p.oldPrice) : "",
-      badge: p.badge ?? "",
-      featured: p.featured,
-      stock: String(p.stock),
       description: p.description ?? "",
       descriptionEn: p.descriptionEn ?? "",
-      image: p.image,
+      image: p.image ?? "",
+      extra: Object.entries(p.extra ?? {}).map(([k, v]) => ({
+          key: k,
+          value: String(v ?? ""),
+        })),
     });
-    setError("");
-    setView("form");
-    window.scrollTo({ top: 0 });
-  }
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-    const payload = {
-      name: form.name.trim(),
-      nameEn: form.nameEn.trim(),
-      subtitle: form.subtitle.trim() || null,
-      subtitleEn: form.subtitleEn.trim() || null,
-      category: form.category,
-      price: Math.round(Number(form.price) || 0),
-      oldPrice: form.oldPrice ? Math.round(Number(form.oldPrice)) : null,
-      badge: form.badge || null,
-      featured: form.featured,
-      stock: Math.max(0, Math.round(Number(form.stock) || 0)),
-      description: form.description.trim() || null,
-      descriptionEn: form.descriptionEn.trim() || null,
-      image: form.image.trim(),
-    };
-    try {
-      if (editing) {
-        await api("/api/admin/products", {
-          method: "PATCH",
-          body: JSON.stringify({ id: editing.id, ...payload }),
-        });
-        notify("تم تحديث المنتج ✓");
-      } else {
-        await api("/api/admin/products", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        notify("تمت إضافة المنتج ✓");
-      }
-      setView("list");
-      await load();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function remove(p: Product) {
-    if (!confirm(`متأكدة من حذف «${p.name}»؟ لا يمكن التراجع.`)) return;
-    try {
-      await api("/api/admin/products", {
-        method: "DELETE",
-        body: JSON.stringify({ id: p.id }),
-      });
-      notify("تم حذف المنتج");
-      await load();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-
-  async function toggleFeatured(p: Product) {
-    try {
-      await api("/api/admin/products", {
-        method: "PATCH",
-        body: JSON.stringify({
-          id: p.id,
-          name: p.name,
-          nameEn: p.nameEn,
-          subtitle: p.subtitle,
-          subtitleEn: p.subtitleEn,
-          category: p.category,
-          price: p.price,
-          oldPrice: p.oldPrice,
-          badge: p.badge,
-          featured: !p.featured,
-          stock: p.stock,
-          description: p.description,
-          descriptionEn: p.descriptionEn,
-          image: p.image,
-        }),
-      });
-      await load();
-    } catch (e) {
-      notify((e as Error).message);
-    }
+    setSaveErr("");
+    setFormOpen(true);
   }
 
   async function onFile(f?: File | null) {
     if (!f) return;
     try {
-      const dataUrl = await fileToDataUrl(f);
-      setForm((fm) => ({ ...fm, image: dataUrl }));
-      notify("تم رفع الصورة ✓");
-    } catch (e) {
-      setError((e as Error).message);
+      const url = await fileToDataUrl(f);
+      setForm((f2) => ({ ...f2, image: url }));
+    } catch {
+      setSaveErr("تعذر قراءة الصورة");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
     }
   }
 
-  /* ─────────── login gate ─────────── */
-  if (!token) {
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveErr("");
+    const payload = {
+      ...(editingId ? { id: editingId } : {}),
+      name: form.name,
+      nameEn: form.nameEn,
+      category: form.category,
+      price: form.price,
+      oldPrice: form.oldPrice || null,
+      badge: form.badge || null,
+      stock: form.stock,
+      featured: form.featured,
+      subtitle: form.subtitle || null,
+      subtitleEn: form.subtitleEn || null,
+      description: form.description || null,
+      descriptionEn: form.descriptionEn || null,
+      image: form.image || null,
+      extra: Object.fromEntries(
+        form.extra.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.value])
+      ),
+    };
+    try {
+      const { res, data } = await api("/api/admin/products", {
+        method: editingId ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setFormOpen(false);
+        load();
+      } else {
+        setSaveErr(data.error || "خطأ في الحفظ");
+      }
+    } catch {
+      setSaveErr("خطأ في الاتصال");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function del(id: number) {
+    if (!confirm("متأكدة من حذف هذا المنتج؟ لا يمكن التراجع.")) return;
+    try {
+      const { res } = await api("/api/admin/products", {
+        method: "DELETE",
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) setProducts((p) => p.filter((x) => x.id !== id));
+    } catch {
+      /* handled in api */
+    }
+  }
+
+  async function toggleFeatured(p: Product) {
+    try {
+      const { res } = await api("/api/admin/products", {
+        method: "PATCH",
+        body: JSON.stringify({ id: p.id, featured: !p.featured }),
+      });
+      if (res.ok)
+        setProducts((ps) =>
+          ps.map((x) => (x.id === p.id ? { ...x, featured: !p.featured } : x))
+        );
+    } catch {
+      /* handled in api */
+    }
+  }
+
+  /* ─────────── login screen ─────────── */
+  if (checking) return null;
+  if (!authed) {
     return (
-      <div className="grain flex min-h-screen flex-col items-center justify-center bg-cream px-5">
+      <main className="grid min-h-screen place-items-center bg-cream px-5">
         <div className="w-full max-w-sm rounded-3xl border border-sand bg-linen p-8 shadow-xl shadow-mauve-deep/10">
-          <div className="flex flex-col items-center text-center">
+          <div className="flex justify-center">
             <Logo size="md" />
-            <span className="mt-6 grid h-12 w-12 place-items-center rounded-full bg-mauve/10 text-mauve">
-              <LockIcon className="h-5 w-5" />
-            </span>
-            <h1 className="mt-4 font-display text-2xl font-bold text-ink">
-              لوحة تحكم هيفاء
-            </h1>
-            <p className="mt-2 text-sm text-ink/55">
-              أدخلي الـPIN للدخول وإدارة المنتجات
-            </p>
           </div>
-          <form onSubmit={login} className="mt-6 space-y-3">
-            <input
-              dir="ltr"
-              type="password"
-              inputMode="numeric"
-              autoFocus
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="••••"
-              className={inputCls}
-            />
-            {authError && (
+          <h1 className="mt-5 text-center font-display text-2xl font-bold text-ink">
+            لوحة التحكم
+          </h1>
+          <p className="mt-1 text-center text-xs text-ink/50">
+            للدخول ادخلي اسم المستخدم وكلمة المرور
+          </p>
+          <form onSubmit={login} className="mt-6 space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                اسم المستخدم
+              </label>
+              <input
+                dir="ltr"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={inputCls}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                كلمة المرور
+              </label>
+              <input
+                dir="ltr"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            {loginErr && (
               <p className="rounded-xl bg-mauve/10 px-4 py-2.5 text-xs font-bold text-mauve-deep">
-                {authError}
-              </p>
+                  {loginErr}
+                </p>
             )}
             <button
               type="submit"
-              disabled={authBusy || !pin}
-              className="w-full rounded-full bg-ink py-3.5 text-sm font-bold text-linen transition-colors hover:bg-mauve-deep disabled:opacity-50"
+              disabled={loginBusy}
+              className="w-full rounded-full bg-ink py-3.5 text-sm font-bold text-linen transition-colors hover:bg-mauve-deep disabled:opacity-60"
             >
-              {authBusy ? "… جاري التحقق" : "دخول"}
+              {loginBusy ? "… جاري الدخول" : "دخول"}
             </button>
           </form>
           <a
             href="/"
-            className="mt-5 block text-center text-xs font-bold text-ink/45 hover:text-mauve-deep"
+            className="mt-5 block text-center text-xs font-bold text-ink/50 hover:text-mauve-deep"
           >
-            ← الرجوع للموقع
+            ← العودة إلى الموقع
           </a>
         </div>
-      </div>
+      </main>
     );
   }
 
-  /* ─────────── admin app ─────────── */
-  const bagsCount = products.filter((p) => p.category === "bags").length;
-  const makeupCount = products.length - bagsCount;
-
+  /* ─────────── dashboard ─────────── */
   return (
-    <div className="min-h-screen bg-cream pb-20">
-      {/* top bar */}
-      <header className="sticky top-0 z-40 border-b border-sand/70 bg-cream/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-5">
+    <main className="min-h-screen bg-cream pb-24">
+      <header className="sticky top-0 z-40 border-b border-sand bg-cream/90 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
           <div className="flex items-center gap-3">
             <Logo size="sm" />
-            <span className="hidden rounded-full bg-ink/5 px-3 py-1 text-[11px] font-bold text-ink/50 sm:block">
+            <span className="hidden rounded-full bg-ink/5 px-3 py-1 text-[11px] font-bold text-ink/60 sm:block">
               لوحة التحكم
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href="/"
-              className="rounded-full border border-ink/15 px-4 py-2 text-xs font-bold text-ink/60 transition-colors hover:border-ink hover:text-ink"
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-xs font-bold text-linen transition-colors hover:bg-mauve-deep"
             >
-              عرض الموقع
-            </a>
+              <PlusIcon className="h-3.5 w-3.5" />
+              منتج جديد
+            </button>
             <button
               onClick={logout}
-              className="rounded-full border border-ink/15 px-4 py-2 text-xs font-bold text-ink/60 transition-colors hover:border-mauve hover:text-mauve-deep"
+              className="rounded-full border border-ink/15 px-4 py-2.5 text-xs font-bold text-ink/60 transition-colors hover:border-mauve hover:text-mauve-deep"
             >
               خروج
             </button>
@@ -414,375 +436,469 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 pt-8">
-        {/* stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-sand bg-linen p-4">
-            <p className="text-2xl font-extrabold tabular-nums text-ink">{products.length}</p>
-            <p className="text-xs font-bold text-ink/50">إجمالي المنتجات</p>
-          </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-sand bg-linen p-4">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-mauve/10 text-mauve">
-              <BagIcon className="h-4.5 w-4.5" />
-            </span>
-            <div>
-              <p className="text-xl font-extrabold tabular-nums text-ink">{bagsCount}</p>
-              <p className="text-xs font-bold text-ink/50">شنط</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-sand bg-linen p-4">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-sage/15 text-sage-deep">
-              <BrushIcon className="h-4.5 w-4.5" />
-            </span>
-            <div>
-              <p className="text-xl font-extrabold tabular-nums text-ink">{makeupCount}</p>
-              <p className="text-xs font-bold text-ink/50">مكياج</p>
-            </div>
-          </div>
+      <main className="mx-auto max-w-5xl px-5 pt-8">
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-3xl font-bold text-ink">
+            المنتجات{" "}
+            <span className="text-lg text-ink/40">({products.length})</span>
+          </h1>
         </div>
 
-        {/* ─── form view ─── */}
-        {view === "form" ? (
+        {loading && (
+          <p className="mt-8 text-center text-sm font-bold text-ink/40">
+            … جاري التحميل
+          </p>
+        )}
+
+        {dbError && (
+          <div className="mt-8 rounded-3xl border border-mauve/30 bg-mauve/5 p-8 text-center">
+            <p className="font-display text-xl font-bold text-mauve-deep">
+              قاعدة البيانات غير متصلة
+            </p>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-ink/55">
+              اضبطي متغير <span dir="ltr">DATABASE_URL</span> في Vercel
+              (Environment Variables) من قاعدة Neon المجانية، ثم إعادة النشر.
+            </p>
+          </div>
+        )}
+
+        {loadError && !dbError && (
+          <div className="mt-8 rounded-3xl border border-mauve/30 bg-mauve/5 p-8 text-center">
+          <p className="font-display text-xl font-bold text-mauve-deep">
+              {loadError}
+            </p>
+          </div>
+        )}
+
+        {!loading && !dbError && !loadError && products.length === 0 && (
+          <div className="mt-8 rounded-3xl border border-dashed border-sand bg-linen p-10 text-center">
+            <p className="font-display text-xl font-bold text-ink">
+              لا توجد منتجات بعد
+            </p>
+            <button
+              onClick={openAdd}
+              className="mt-4 rounded-full bg-ink px-6 py-3 text-sm font-bold text-linen hover:bg-mauve-deep"
+            >
+              + إضافة أول منتج
+            </button>
+          </div>
+        )}
+
+        <div className="mt-6 space-y-2.5">
+          {!loading &&
+            products.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 rounded-2xl border border-sand bg-linen p-3"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.image}
+                  alt={p.name}
+                  className="h-14 w-12 shrink-0 rounded-xl object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-ink">
+                    {p.name}
+                    {p.featured && (
+                      <span className="ms-2 inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-gold">
+                        <StarIcon className="h-3 w-3" /> مميز
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-ink/50">
+                    {p.category === "bags" ? "شنط" : "مكياج"}
+                    {p.badge ? ` · ${p.badge}` : ""} · مخزون {p.stock}
+                  </p>
+                </div>
+                <span className="shrink-0 font-display font-bold text-mauve-deep">
+                  {formatPrice(p.price)} <span className="text-[10px]">ر.س</span>
+                </span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    onClick={() => toggleFeatured(p)}
+                    title="مميز في الواجهة"
+                    className={`grid h-9 w-9 place-items-center rounded-full border transition-colors ${
+                        p.featured
+                          ? "border-gold bg-gold/15 text-gold"
+                          : "border-ink/15 text-ink/40 hover:border-gold hover:text-gold"
+                      }`}
+                  >
+                    <StarIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => openEdit(p)}
+                    title="تعديل"
+                    className="grid h-9 w-9 place-items-center rounded-full border border-ink/15 text-ink/50 transition-colors hover:border-mauve hover:text-mauve-deep"
+                  >
+                    <EditIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => del(p.id)}
+                    title="حذف"
+                    className="grid h-9 w-9 place-items-center rounded-full border border-ink/15 text-ink/50 transition-colors hover:border-red-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+      </main>
+
+      {/* ─────────── product form modal ─────────── */}
+      {formOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4">
+          <div
+            className="fade-in absolute inset-0 bg-ink/50 backdrop-blur-sm"
+            onClick={() => setFormOpen(false)}
+          />
           <form
             onSubmit={save}
-            className="mt-6 rounded-3xl border border-sand bg-linen p-6 sm:p-8"
+            className="modal-in relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-linen p-6 sm:max-w-2xl sm:rounded-3xl sm:p-8"
           >
             <div className="flex items-center justify-between">
               <h2 className="font-display text-2xl font-bold text-ink">
-                {editing ? "تعديل منتج" : "إضافة منتج جديد"}
+                {editingId ? "تعديل المنتج" : "منتج جديد"}
               </h2>
               <button
                 type="button"
-                onClick={() => setView("list")}
-                className="flex items-center gap-2 rounded-full border border-ink/15 px-4 py-2 text-xs font-bold text-ink/60 hover:border-ink hover:text-ink"
+                onClick={() => setFormOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-full border border-ink/15 text-ink/60 hover:text-mauve-deep"
               >
-                <CloseIcon className="h-3.5 w-3.5" />
-                رجوع
+                <XIcon className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <L label="الاسم (عربي) *">
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="شنطة ليان"
-                  className={inputCls}
-                />
-              </L>
-              <L label="Name (English) *">
-                <input
-                  dir="ltr"
-                  required
-                  value={form.nameEn}
-                  onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
-                  placeholder="Lian Tote"
-                  className={`${inputCls} text-left`}
-                />
-              </L>
-              <L label="وصف قصير (عربي)">
-                <input
-                  value={form.subtitle}
-                  onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
-                  placeholder="توت يومي من الجلد الطبيعي"
-                  className={inputCls}
-                />
-              </L>
-              <L label="Short subtitle (English)">
-                <input
-                  dir="ltr"
-                  value={form.subtitleEn}
-                  onChange={(e) => setForm({ ...form, subtitleEn: e.target.value })}
-                  placeholder="Everyday tote in natural leather"
-                  className={`${inputCls} text-left`}
-                />
-              </L>
-              <L label="القسم *">
-                <div className="grid grid-cols-2 gap-2">
-                  {(["bags", "makeup"] as const).map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setForm({ ...form, category: c })}
-                      className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-bold transition-all ${
-                        form.category === c
-                          ? "border-ink bg-ink text-linen"
-                          : "border-ink/15 text-ink/60 hover:border-mauve"
-                      }`}
-                    >
-                      {c === "bags" ? (
-                        <BagIcon className="h-4 w-4" />
-                      ) : (
-                        <BrushIcon className="h-4 w-4" />
-                      )}
-                      {c === "bags" ? "شنط" : "مكياج"}
-                    </button>
-                  ))}
+            <div className="mt-6 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    الاسم (عربي) *
+                  </label>
+                  <input
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className={inputCls}
+                  />
                 </div>
-              </L>
-              <L label="الشارة">
-                <select
-                  value={form.badge}
-                  onChange={(e) => setForm({ ...form, badge: e.target.value })}
-                  className={inputCls}
-                >
-                  {BADGES.map((b) => (
-                    <option key={b} value={b}>
-                      {b || "بدون شارة"}
-                    </option>
-                  ))}
-                </select>
-              </L>
-              <L label="السعر (ر.ق) *">
-                <input
-                  dir="ltr"
-                  required
-                  inputMode="numeric"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  placeholder="320"
-                  className={`${inputCls} text-left`}
-                />
-              </L>
-              <L label="السعر قبل الخصم (اختياري)">
-                <input
-                  dir="ltr"
-                  inputMode="numeric"
-                  value={form.oldPrice}
-                  onChange={(e) => setForm({ ...form, oldPrice: e.target.value })}
-                  placeholder="400"
-                  className={`${inputCls} text-left`}
-                />
-              </L>
-              <L label="الكمية في المخزون">
-                <input
-                  dir="ltr"
-                  inputMode="numeric"
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                  className={`${inputCls} text-left`}
-                />
-              </L>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, featured: !form.featured })}
-                  className={`flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-bold transition-all ${
-                    form.featured
-                      ? "border-sage-deep bg-sage-soft text-sage-deep"
-                      : "border-ink/15 text-ink/50 hover:border-sage"
-                  }`}
-                >
-                  <CheckIcon className="h-4 w-4" />
-                  {form.featured ? "مميز في المتجر" : "عادي"}
-                </button>
-              </div>
-              <div className="sm:col-span-2">
-                <L label="الوصف (عربي)">
-                  <textarea
-                    rows={3}
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    className={`${inputCls} resize-none`}
-                  />
-                </L>
-              </div>
-              <div className="sm:col-span-2">
-                <L label="Description (English)">
-                  <textarea
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    Name (English)
+                  </label>
+                  <input
                     dir="ltr"
-                    rows={3}
-                    value={form.descriptionEn}
-                    onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })}
-                    className={`${inputCls} resize-none text-left`}
+                    value={form.nameEn}
+                    onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
+                    className={inputCls}
                   />
-                </L>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    القسم *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["bags", "makeup"] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setForm({ ...form, category: c })}
+                        className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-xs font-bold transition-all ${
+                          form.category === c
+                            ? "border-ink bg-ink text-linen"
+                            : "border-ink/15 text-ink/60"
+                        }`}
+                      >
+                        {c === "bags" ? (
+                          <BagIcon className="h-4 w-4" />
+                        ) : (
+                          <BrushIcon className="h-4 w-4" />
+                        )}
+                        {c === "bags" ? "شنط" : "مكياج"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    الشارة
+                  </label>
+                  <select
+                    value={form.badge}
+                    onChange={(e) => setForm({ ...form, badge: e.target.value })}
+                    className={inputCls}
+                  >
+                    {BADGES.map((b) => (
+                      <option key={b} value={b}>
+                        {b || "بدون شارة"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    السعر (ر.س) *
+                  </label>
+                  <input
+                    dir="ltr"
+                    required
+                    inputMode="numeric"
+                    value={form.price}
+                    onChange={(e) => setForm({ ...form, price: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    السعر قبل الخصم
+                  </label>
+                  <input
+                    dir="ltr"
+                    inputMode="numeric"
+                    value={form.oldPrice}
+                    onChange={(e) => setForm({ ...form, oldPrice: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    الكمية
+                  </label>
+                  <input
+                    dir="ltr"
+                    inputMode="numeric"
+                    value={form.stock}
+                    onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                    وصف قصير (عربي)
+                  </label>
+                  <input
+                    value={form.subtitle}
+                    onChange={(e) =>
+                      setForm({ ...form, subtitle: e.target.value })
+                    }
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                      Short subtitle (EN)
+                  </label>
+                  <input
+                    dir="ltr"
+                    value={form.subtitleEn}
+                    onChange={(e) =>
+                      setForm({ ...form, subtitleEn: e.target.value })
+                    }
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                  الوصف الكامل (عربي)
+                </label>
+                <textarea
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                  className={`${inputCls} resize-none`}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                  Full description (EN)
+                </label>
+                <textarea
+                  dir="ltr"
+                  rows={3}
+                  value={form.descriptionEn}
+                  onChange={(e) =>
+                    setForm({ ...form, descriptionEn: e.target.value })
+                  }
+                  className={`${inputCls} resize-none`}
+                />
               </div>
 
               {/* image */}
-              <div className="sm:col-span-2">
-                <span className="mb-1.5 block text-xs font-bold text-ink/70">
-                  صورة المنتج *
-                </span>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={form.image.startsWith("data:") ? "صورة مرفوعة ✓" : form.image}
-                      onChange={(e) => setForm({ ...form, image: e.target.value })}
-                      placeholder="https://… أو ارفعي صورة"
-                      dir="ltr"
-                      className={`${inputCls} min-w-0 flex-1 text-left`}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-ink/70">
+                  الصورة *
+                </label>
+                <div className="flex gap-3">
+                  {form.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={form.image}
+                      alt="معاينة"
+                      className="h-24 w-20 shrink-0 rounded-xl border border-sand object-cover"
                     />
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      className="flex shrink-0 items-center gap-2 rounded-xl border border-mauve/40 bg-mauve/5 px-4 py-3 text-xs font-bold text-mauve-deep transition-colors hover:bg-mauve hover:text-linen"
-                    >
-                      <UploadIcon className="h-4 w-4" />
-                      ارفعي صورة
-                    </button>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <input
+                      dir="ltr"
+                      value={form.image.startsWith("data:") ? "" : form.image}
+                      onChange={(e) =>
+                        setForm({ ...form, image: e.target.value })
+                      }
+                      placeholder="https://… رابط الصورة"
+                      className={inputCls}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        className="flex items-center gap-2 rounded-xl border border-mauve/40 bg-mauve/5 px-4 py-2.5 text-xs font-bold text-mauve-deep hover:bg-mauve hover:text-linen"
+                      >
+                        <UploadIcon className="h-4 w-4" />
+                        رفع صورة من الجهاز
+                      </button>
+                      {form.image.startsWith("data:") && (
+                        <span className="text-[11px] font-bold text-mauve-deep">
+                          ✓ صورة مرفوعة
+                        </span>
+                      )}
+                    </div>
                     <input
                       ref={fileRef}
                       type="file"
                       accept="image/*"
-                      className="hidden"
+                      hidden
                       onChange={(e) => onFile(e.target.files?.[0])}
                     />
                   </div>
-                  {form.image && (
-                    <img
-                      src={form.image}
-                      alt="معاينة"
-                      className="h-28 w-24 shrink-0 rounded-xl border border-sand object-cover"
-                    />
-                  )}
                 </div>
               </div>
-            </div>
 
-            {error && (
-              <p className="mt-4 rounded-xl bg-mauve/10 px-4 py-3 text-xs font-bold text-mauve-deep">
-                {error}
-              </p>
-            )}
+              {/* custom extra fields */}
+              <div className="rounded-2xl border border-sand bg-cream/50 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink/70">
+                    حقول إضافية (تظهر مع المنتج في الموقع)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                    setForm((f) => ({
+                        ...f,
+                        extra: [...f.extra, { key: "", value: "" }],
+                      }))
+                  }
+                    className="flex items-center gap-1 rounded-full bg-ink px-3.5 py-1.5 text-[11px] font-bold text-linen hover:bg-mauve-deep"
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                    إضافة حقل
+                  </button>
+                </div>
+                {form.extra.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {form.extra.map((f, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input
+                          value={f.key}
+                          onChange={(e) =>
+                            setForm((f2) => ({
+                              ...f2,
+                              extra: f2.extra.map((x, j) =>
+                                j === i ? { ...x, key: e.target.value } : x
+                              ),
+                            }))
+                          }
+                          placeholder="اسم الحقل (مثال: المقاس)"
+                          className={`${inputCls} flex-1`}
+                        />
+                        <input
+                          value={f.value}
+                          onChange={(e) =>
+                            setForm((f2) => ({
+                              ...f2,
+                              extra: f2.extra.map((x, j) =>
+                                j === i ? { ...x, value: e.target.value } : x
+                              ),
+                            }))
+                          }
+                          placeholder="القيمة (مثال: 36-41)"
+                          className={`${inputCls} flex-1`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((f2) => ({
+                              ...f2,
+                              extra: f2.extra.filter((_, j) => j !== i),
+                            }))
+                          }
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-ink/15 text-ink/50 hover:border-red-400 hover:text-red-500"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-sand bg-cream/50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={form.featured}
+                onChange={(e) =>
+                  setForm({ ...form, featured: e.target.checked })
+                }
+                className="h-4 w-4 accent-[#96605b]"
+              />
+              <span className="text-xs font-bold text-ink/70">
+                مميز — يظهر في الواجهة (نجم)
+              </span>
+            </label>
+
+              {saveErr && (
+                <p className="rounded-xl bg-mauve/10 px-4 py-2.5 text-xs font-bold text-mauve-deep">
+                  {saveErr}
+                </p>
+              )}
+            </div>
 
             <div className="mt-6 flex gap-3">
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 rounded-full bg-ink py-4 text-sm font-bold text-linen transition-colors hover:bg-mauve-deep disabled:opacity-50"
+                className="flex-1 rounded-full bg-ink py-4 text-sm font-bold text-linen transition-colors hover:bg-mauve-deep disabled:opacity-60"
               >
                 {saving
                   ? "… جاري الحفظ"
-                  : editing
+                  : editingId
                     ? "حفظ التعديلات"
                     : "إضافة المنتج"}
               </button>
               <button
                 type="button"
-                onClick={() => setView("list")}
+                onClick={() => setFormOpen(false)}
                 className="rounded-full border border-ink/15 px-6 py-4 text-sm font-bold text-ink/60 hover:border-ink hover:text-ink"
               >
                 إلغاء
               </button>
             </div>
           </form>
-        ) : (
-          /* ─── list view ─── */
-          <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-2xl font-bold text-ink">المنتجات</h2>
-              <button
-                onClick={startAdd}
-                className="flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-bold text-linen transition-colors hover:bg-mauve-deep"
-              >
-                <PlusIcon className="h-4 w-4" />
-                منتج جديد
-              </button>
-            </div>
-
-            {listError && (
-              <p className="mt-4 rounded-2xl bg-mauve/10 px-5 py-4 text-sm font-bold text-mauve-deep">
-                {listError}
-              </p>
-            )}
-
-            {loading ? (
-              <p className="mt-8 text-center text-sm font-bold text-ink/40">
-                … جاري التحميل
-              </p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {products.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex flex-wrap items-center gap-4 rounded-2xl border border-sand bg-linen p-3 sm:flex-nowrap"
-                  >
-                    <div className="h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-sand/40">
-                      <img
-                        src={p.image}
-                        alt={p.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-bold text-ink">{p.name}</p>
-                        <span className="shrink-0 rounded-full bg-ink/5 px-2.5 py-0.5 text-[10px] font-bold text-ink/50">
-                          {p.category === "bags" ? "شنط" : "مكياج"}
-                        </span>
-                        {p.badge && (
-                          <span className="shrink-0 rounded-full bg-sage/15 px-2.5 py-0.5 text-[10px] font-bold text-sage-deep">
-                            {p.badge}
-                          </span>
-                        )}
-                        {p.featured && (
-                          <span className="shrink-0 rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold text-gold">
-                            مميز
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 truncate text-xs text-ink/45" dir="ltr">
-                        {p.nameEn}
-                      </p>
-                      <p className="mt-1 text-sm font-extrabold tabular-nums text-mauve-deep">
-                        {p.price} ر.ق
-                        {p.oldPrice && (
-                          <span className="ms-2 text-xs font-bold text-ink/30 line-through">
-                            {p.oldPrice}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        onClick={() => toggleFeatured(p)}
-                        title={p.featured ? "إزالة التمييز" : "تمييز في المتجر"}
-                        className={`grid h-9 w-9 place-items-center rounded-full border text-xs font-bold transition-colors ${
-                          p.featured
-                            ? "border-gold bg-gold/15 text-gold"
-                            : "border-ink/15 text-ink/40 hover:border-gold hover:text-gold"
-                        }`}
-                      >
-                        ★
-                      </button>
-                      <button
-                        onClick={() => startEdit(p)}
-                        aria-label="تعديل"
-                        className="grid h-9 w-9 place-items-center rounded-full border border-ink/15 text-ink/50 transition-colors hover:border-mauve hover:text-mauve-deep"
-                      >
-                        <EditIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => remove(p)}
-                        aria-label="حذف"
-                        className="grid h-9 w-9 place-items-center rounded-full border border-ink/15 text-ink/50 transition-colors hover:border-red-400 hover:bg-red-50 hover:text-red-500"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-                {products.length === 0 && !listError && (
-                  <p className="mt-8 text-center text-sm font-bold text-ink/40">
-                    لا توجد منتجات بعد — أضيفي أول منتج
-                  </p>
-                )}
-              </ul>
-            )}
-          </div>
-        )}
-      </main>
-
-      {toast && (
-        <div className="toast-pop fixed bottom-6 left-1/2 z-50 flex items-center gap-2.5 rounded-full bg-ink px-6 py-3.5 text-sm font-bold text-linen shadow-2xl">
-          <span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-linen">
-            <CheckIcon className="h-3 w-3" />
-          </span>
-          {toast}
         </div>
       )}
-    </div>
+    </main>
   );
 }

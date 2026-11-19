@@ -12,18 +12,20 @@ export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
+  nameEn: text("name_en"),
   subtitle: text("subtitle"),
+  subtitleEn: text("subtitle_en"),
   category: text("category").notNull(), // "bags" | "makeup"
   price: integer("price").notNull(),
   oldPrice: integer("old_price"),
   description: text("description"),
-  nameEn: text("name_en"),
-  subtitleEn: text("subtitle_en"),
   descriptionEn: text("description_en"),
   image: text("image").notNull(),
   badge: text("badge"),
   featured: boolean("featured").notNull().default(false),
   stock: integer("stock").notNull().default(20),
+  /** حقول إضافية مخصصة يضيفها الأدمن: { "حجم": "36-41", ... } */
+  extra: jsonb("extra"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

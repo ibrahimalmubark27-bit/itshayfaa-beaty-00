@@ -14,6 +14,8 @@ export type Product = {
   badge: string | null;
   featured: boolean;
   stock: number;
+  /** حقول إضافية يضيفها الأدمن */
+  extra?: Record<string, string> | null;
 };
 
 /** localized product fields */
